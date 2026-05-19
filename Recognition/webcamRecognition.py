@@ -46,7 +46,8 @@ def decode_frame(frame_data: str) -> Optional[np.ndarray]:
         # Convert BGR to RGB
         image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
         
-        logger.info(f"Frame decoded successfully: shape={image_rgb.shape}")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Frame decoded successfully: shape={image_rgb.shape}")
         return image_rgb
         
     except Exception as e:
@@ -72,7 +73,8 @@ def decode_frame_pil(image_bytes: bytes) -> Optional[np.ndarray]:
             image_pil = image_pil.convert("RGB")
         
         image_rgb = np.array(image_pil)
-        logger.info(f"Frame decoded with PIL: shape={image_rgb.shape}")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Frame decoded with PIL: shape={image_rgb.shape}")
         return image_rgb
         
     except Exception as e:
@@ -108,6 +110,8 @@ def validate_frame(frame: Optional[np.ndarray]) -> bool:
     
     if frame.dtype != np.uint8:
         logger.error(f"Frame must be uint8, got {frame.dtype}")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(f"Frame dtype: {frame.dtype}")
         return False
     
     return True
