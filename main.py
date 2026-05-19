@@ -6,7 +6,7 @@ from routers.attendance_ws import router as attendance_router
 from core.middleware import AuthMiddleware
 from routers.deleteImage import router as delete_router
 app = FastAPI(
-    title="Student Face Embedding API",
+    title="ML Model API",
     version="1.0.0",
 )
 
@@ -20,7 +20,7 @@ app.add_middleware(AuthMiddleware)
 
 @app.get("/")
 def home():
-    return {"message": "FAISS Face Recognition API Running"}
+    return {"message": "ML Model API Running"}
 
 
 if __name__ == "__main__":

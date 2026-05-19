@@ -14,23 +14,65 @@ attendance_tracking = {}  # session_id -> {student_code -> last_timestamp}
 DUPLICATE_CHECK_WINDOW = 5  # seconds
 
 
+def classify_attendance(
+    recorded_time: datetime,
+    start_time: datetime,
+    min_attend: int,
+    max_attend: int
+) -> str:
+    """
+    Classify attendance status based on time.
+    
+    Args:
+        recorded_time: When the student was detected
+        start_time: When the session started
+        min_attend: Minute threshold for "present" (after start_time)
+        max_attend: Minute threshold for "late" (after min_attend)
+        
+    Returns:
+        Status: "present", "late", or "absent"
+        
+    Logic:
+        - recorded_time <= start_time + min_attend: "present"
+        - start_time + min_attend < recorded_time <= start_time + max_attend: "late"
+        - recorded_time > start_time + max_attend: "absent" (shouldn't reach here)
+    """
+    diff_minutes = (recorded_time - start_time).total_seconds() / 60
+    
+    logger.info(f"Attendance classification: {diff_minutes:.1f} minutes after session start")
+    logger.info(f"Thresholds: present={min_attend}min, late={max_attend}min")
+    
+    if diff_minutes <= min_attend:
+        status = "present"
+    elif diff_minutes <= max_attend:
+        status = "late"
+    else:
+        # This shouldn't happen during session, but mark as absent if it does
+        status = "absent"
+    
+    logger.info(f"Classification result: {status}")
+    return status
+
+
 def process_attendance(
     student_code: Optional[str],
     distance: Optional[float],
     session_id: str,
-    student_map: Dict[str, str]
+    student_map: Dict[str, str],
+    session_data: Dict
 ) -> Dict:
     """
-    Process attendance logic based on recognition result.
+    Process attendance logic based on recognition result and time classification.
     
     Args:
         student_code: Recognized student code (None if not recognized)
         distance: Distance from FAISS search (None if not recognized)
         session_id: Current session ID
         student_map: Mapping of student_code to student_name
+        session_data: Session metadata including start_time, min_attend, max_attend
         
     Returns:
-        Dictionary with attendance result
+        Dictionary with attendance result including status (present/late/absent)
     """
     now = datetime.now(ZoneInfo("Africa/Cairo"))
     
@@ -40,7 +82,9 @@ def process_attendance(
             "status": "unknown",
             "message": "Face not recognized",
             "distance": distance if distance is not None else None,
-            "timestamp": now.strftime("%Y-%m-%d %H:%M:%S %p")
+            "recorded_at": now,
+            "model_accuracy": None,
+            "session_id": session_id
         }
     
     # Case 2: Distance threshold check (security)
@@ -54,7 +98,9 @@ def process_attendance(
             "message": f"Distance {distance:.4f} exceeds threshold",
             "student_code": student_code,
             "distance": distance,
-            "timestamp": now.strftime("%Y-%m-%d %H:%M:%S %p")
+            "recorded_at": now,
+            "model_accuracy": 1.0 - min(distance / DISTANCE_THRESHOLD, 1.0),
+            "session_id": session_id
         }
     
     # Case 3: Check for duplicate attendance (prevent rapid re-entry)
@@ -64,25 +110,37 @@ def process_attendance(
             "message": f"Student {student_code} already marked recently",
             "student_code": student_code,
             "student_name": student_map.get(student_code, "Unknown"),
-            "timestamp": now.strftime("%Y-%m-%d %H:%M:%S %p")
+            "recorded_at": now,
+            "model_accuracy": None,
+            "session_id": session_id
         }
     
-    # Case 4: Valid attendance - record it
+    # Case 4: Classify attendance based on time
     student_name = student_map.get(student_code, "Unknown")
+    
+    # 🔥 NEW: Classify attendance status (present/late/absent)
+    status = classify_attendance(
+        recorded_time=now,
+        start_time=session_data["start_time"],
+        min_attend=session_data["min_attend"],
+        max_attend=session_data["max_attend"]
+    )
+    
+    model_accuracy = 1.0 - min(distance / DISTANCE_THRESHOLD, 1.0)
     
     logger.info(
         f"✅ Attendance recorded: {student_code} ({student_name}) "
-        f"at {now.strftime('%H:%M:%S')} (distance: {distance:.4f})"
+        f"Status: {status} | Accuracy: {model_accuracy:.2%} | Distance: {distance:.4f}"
     )
     
     return {
-        "status": "success",
-        "message": "Attendance recorded",
+        "status": status,  # 🔥 present / late / absent
+        "message": f"Student marked as {status}",
         "student_code": student_code,
         "student_name": student_name,
-        "distance": distance,
-        "confidence": 1.0 - min(distance / DISTANCE_THRESHOLD, 1.0),  # Confidence score
-        "timestamp": now.strftime("%Y-%m-%d %H:%M:%S %p")
+        "recorded_at": now,
+        "model_accuracy": model_accuracy,
+        "session_id": session_id
     }
 
 
@@ -129,7 +187,7 @@ def get_attendance_summary(
     maximum_attendance: int
 ) -> Dict:
     """
-    Get a summary of attendance for the session.
+    Get a summary of attendance for the session (from in-memory tracking).
     
     Args:
         session_id: Session ID
@@ -181,6 +239,90 @@ def get_attendance_summary(
             else "pending" if not is_minimum_met
             else "exceeded"
         )
+    }
+
+
+async def get_attendance_summary_from_db(
+    session_id: str,
+    expected_students: Dict[str, str]
+) -> Dict:
+    """
+    Get a comprehensive summary of attendance from MongoDB.
+    
+    🔥 NEW: Retrieves actual status (present/late/absent) from DB
+    
+    Args:
+        session_id: Session ID
+        expected_students: Dict of {student_code: student_name}
+        
+    Returns:
+        Attendance summary with categorized students
+    """
+    from data.crud import get_session_collection
+    
+    session_collection = get_session_collection(session_id)
+    
+    # Fetch all attendance records
+    records = await session_collection.find(
+        {"session_id": session_id},
+        {"_id": 0}
+    ).to_list(None)
+    
+    present_students = []
+    late_students = []
+    absent_students = []
+    recorded_codes = set()
+    
+    # Categorize recorded students
+    for record in records:
+        code = record.get("student_code")
+        status = record.get("status")
+        recorded_codes.add(code)
+        
+        student_info = {
+            "student_code": code,
+            "student_name": record.get("student_name", "Unknown"),
+            "recorded_at": record.get("recorded_at"),
+            "model_accuracy": record.get("model_accuracy")
+        }
+        
+        if status == "present":
+            present_students.append(student_info)
+        elif status == "late":
+            late_students.append(student_info)
+        elif status == "absent":
+            absent_students.append(student_info)
+    
+    # Find students who weren't recorded at all
+    not_recorded = set(expected_students.keys()) - recorded_codes
+    for code in not_recorded:
+        absent_students.append({
+            "student_code": code,
+            "student_name": expected_students.get(code, "Unknown"),
+            "recorded_at": None,
+            "model_accuracy": None
+        })
+    
+    total = len(expected_students)
+    present_count = len(present_students)
+    late_count = len(late_students)
+    absent_count = len(absent_students)
+    
+    logger.info(
+        f"Attendance Summary: {present_count} present, "
+        f"{late_count} late, {absent_count} absent"
+    )
+    
+    return {
+        "session_id": session_id,
+        "present_count": present_count,
+        "late_count": late_count,
+        "absent_count": absent_count,
+        "total_expected": total,
+        "present_students": present_students,
+        "late_students": late_students,
+        "absent_students": absent_students,
+        "status": "complete" if (present_count + late_count) > 0 else "pending"
     }
 
 
