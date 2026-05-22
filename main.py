@@ -3,6 +3,7 @@ import uvicorn
 from routers.uploadImage import router as upload_router
 from routers.start_session import router as session_router
 from routers.attendance_ws import router as attendance_router
+from routers.sync_session import router as sync_router
 from core.middleware import AuthMiddleware
 from routers.deleteImage import router as delete_router
 app = FastAPI(
@@ -14,6 +15,7 @@ app = FastAPI(
 app.include_router(upload_router)
 app.include_router(session_router)
 app.include_router(attendance_router)
+app.include_router(sync_router)
 app.include_router(delete_router)
 
 app.add_middleware(AuthMiddleware)
