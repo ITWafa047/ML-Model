@@ -13,7 +13,7 @@ DUPLICATE_CHECK_WINDOW = 30
 
 
 def classify_attendance(recorded_time, start_time, min_attend, max_attend) -> str:
-    diff_minutes = (recorded_time - start_time).total_seconds() / 60
+    diff_minutes = (recorded_time - start_time).total_seconds() / 60 # convert to minutes
 
     if diff_minutes <= min_attend:
         return "present"
@@ -32,7 +32,7 @@ def process_attendance(
 ) -> Dict:
 
     now_dt = datetime.now(ZoneInfo("Africa/Cairo"))
-    now = now_dt.strftime("%Y-%m-%d %H:%M:%S %p")  # 🔥 FIX: string
+    now = now_dt.isoformat()  # Use ISO format for proper datetime parsing
 
     # 🔥 FIX: convert numpy → float
     distance = float(distance) if distance is not None else None
@@ -136,7 +136,7 @@ def get_attendance_summary(
             {
                 "student_code": str(code),
                 "student_name": str(expected_students.get(code, "Unknown")),
-                "time": attendance_tracking[session_id][code].strftime("%H:%M:%S %p"),
+                "time": attendance_tracking[session_id][code].strftime("%I:%M:%S %p"),
             }
             for code in present_students
         ],
