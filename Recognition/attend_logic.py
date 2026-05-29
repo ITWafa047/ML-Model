@@ -17,11 +17,10 @@ def classify_attendance(recorded_time, start_time, min_attend, max_attend) -> st
 
     if diff_minutes <= min_attend:
         return "present"
-    elif diff_minutes <= max_attend:
+    elif diff_minutes > min_attend and diff_minutes <= max_attend:
         return "late"
     else:
-        return "present"
-
+        return "absent"
 
 def process_attendance(
     student_code: Optional[str],
