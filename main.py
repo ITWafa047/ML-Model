@@ -27,29 +27,29 @@ def home():
 
 
 @app.get("/ws/attendance", tags=["Live Session"])
-def get_live_session_code(session_id: str = "SEC_2026_02"):
+def get_live_session_code(session_schedule_id: str = "SEC_2026_02"):
     """
     Get Live Session Connection Code Template for Frontend
     
-    Provides copy-paste ready code that frontend can use with their own SESSION_ID.
+    Provides copy-paste ready code that frontend can use with their own session_schedule_id.
     
     Query Parameters:
-    - session_id: The session ID to include in the code template (default: SEC_2026_02)
+    - session_schedule_id: The session ID to include in the code template (default: SEC_2026_02)
     """
     return {
-        "session_id": session_id,
+        "session_schedule_id": session_schedule_id,
         "base_url": "wss://your-api-url",  # Frontend should replace with actual URL
         "javascript_code": f"""
 // Live Session - Real-time Face Recognition
-const SESSION_ID = "{session_id}";
+const session_schedule_id = "{session_schedule_id}";
 const BASE_URL = "wss://your-api-url";  // Replace with actual API URL
-const WS_URL = `${{BASE_URL}}/ws/attendance?session_id=${{SESSION_ID}}`;
+const WS_URL = `${{BASE_URL}}/ws/attendance?session_schedule_id=${{session_schedule_id}}`;
 
 const ws = new WebSocket(WS_URL);
 
 ws.addEventListener('open', () => {{
     console.log('✅ Live Session Connected');
-    console.log(`Session ID: ${{SESSION_ID}}`);
+    console.log(`Session ID: ${{session_schedule_id}}`);
 }});
 
 ws.addEventListener('message', (event) => {{
@@ -103,9 +103,9 @@ import base64
 import json
 import cv2
 
-SESSION_ID = "{session_id}"
+session_schedule_id = "{session_schedule_id}"
 BASE_URL = "wss://your-api-url"  # Replace with actual API URL
-WS_URL = f"{{BASE_URL}}/ws/attendance?session_id={{SESSION_ID}}"
+WS_URL = f"{{BASE_URL}}/ws/attendance?session_schedule_id={{session_schedule_id}}"
 
 def encode_frame(frame):
     _, buffer = cv2.imencode(".jpg", frame)
@@ -114,7 +114,7 @@ def encode_frame(frame):
 async def live_session():
     async with websockets.connect(WS_URL) as websocket:
         print("✅ Live Session Connected")
-        print(f"Session ID: {{SESSION_ID}}")
+        print(f"Session ID: {{session_schedule_id}}")
         
         cap = cv2.VideoCapture(0)  # 0 = default webcam, 1 = external webcam
         
@@ -171,7 +171,7 @@ asyncio.run(live_session())
         "setup_instructions": {
             "step_1": "Copy the code above (JavaScript or Python)",
             "step_2": "Replace 'your-api-url' with your actual API URL",
-            "step_3": "Replace SESSION_ID if needed (default: SEC_2026_02)",
+            "step_3": "Replace session_schedule_id if needed (default: SEC_2026_02)",
             "step_4": "Run the code and monitor the console/terminal for results",
             "step_5": "Press 'q' to exit (or close the browser/Python window)"
         },

@@ -25,7 +25,7 @@ def classify_attendance(recorded_time, start_time, min_attend, max_attend) -> st
 def process_attendance(
     student_code: Optional[str],
     distance: Optional[float],
-    session_id: str,
+    session_schedule_id: str,
     student_map: Dict[str, str],
     session_data: Dict,
 ) -> Dict:
@@ -44,13 +44,13 @@ def process_attendance(
             "distance": distance,
             "recorded_at": now,
             "model_accuracy": None,
-            "session_id": session_id,
+            "session_schedule_id": session_schedule_id,
         }
 
     # 🔥 FIX: removed threshold check from here (moved to attendance_ws)
 
     # ⚠ duplicate
-    if not _check_duplicate_attendance(session_id, student_code, now_dt):
+    if not _check_duplicate_attendance(session_schedule_id, student_code, now_dt):
         return {
             "status": "duplicate",
             "message": f"Student {student_code} already marked recently",
@@ -58,7 +58,7 @@ def process_attendance(
             "student_name": str(student_map.get(student_code, "Unknown")),
             "recorded_at": now,
             "model_accuracy": None,
-            "session_id": session_id,
+            "session_schedule_id": session_schedule_id,
         }
 
     # ✅ success
@@ -85,17 +85,17 @@ def process_attendance(
         "student_name": str(student_name),
         "recorded_at": now,
         "model_accuracy": model_accuracy,
-        "session_id": session_id,
+        "session_schedule_id": session_schedule_id,
     }
 
 
 def _check_duplicate_attendance(
-    session_id: str, student_code: str, now: datetime
+    session_schedule_id: str, student_code: str, now: datetime
 ) -> bool:
-    if session_id not in attendance_tracking:
-        attendance_tracking[session_id] = {}
+    if session_schedule_id not in attendance_tracking:
+        attendance_tracking[session_schedule_id] = {}
 
-    session_tracking = attendance_tracking[session_id]
+    session_tracking = attendance_tracking[session_schedule_id]
 
     if student_code in session_tracking:
         last_time = session_tracking[student_code]
@@ -109,16 +109,16 @@ def _check_duplicate_attendance(
 
 
 def get_attendance_summary(
-    session_id: str,
+    session_schedule_id: str,
     expected_students: Dict[str, str],
     minimum_attendance: int,
     maximum_attendance: int,
 ) -> Dict:
 
-    if session_id not in attendance_tracking:
+    if session_schedule_id not in attendance_tracking:
         present_students = []
     else:
-        present_students = list(attendance_tracking[session_id].keys())
+        present_students = list(attendance_tracking[session_schedule_id].keys())
 
     absent_students = [
         code for code in expected_students.keys() if code not in present_students
@@ -127,7 +127,7 @@ def get_attendance_summary(
     attendance_count = len(present_students)
 
     return {
-        "session_id": session_id,
+        "session_schedule_id": session_schedule_id,
         "present_count": attendance_count,
         "absent_count": len(absent_students),
         "total_expected": len(expected_students),
@@ -135,7 +135,7 @@ def get_attendance_summary(
             {
                 "student_code": str(code),
                 "student_name": str(expected_students.get(code, "Unknown")),
-                "time": attendance_tracking[session_id][code].strftime("%I:%M:%S %p"),
+                "time": attendance_tracking[session_schedule_id][code].strftime("%I:%M:%S %p"),
             }
             for code in present_students
         ],
@@ -150,14 +150,14 @@ def get_attendance_summary(
 
 
 async def get_attendance_summary_from_db(
-    session_id: str, expected_students: Dict[str, str]
+    session_schedule_id: str, expected_students: Dict[str, str]
 ) -> Dict:
     from data.crud import get_session_collection
 
-    session_collection = get_session_collection(session_id)
+    session_collection = get_session_collection(session_schedule_id)
 
     records = await session_collection.find(
-        {"session_id": session_id}, {"_id": 0}
+        {"session_schedule_id": session_schedule_id}, {"_id": 0}
     ).to_list(None)
 
     present_students = []
@@ -201,7 +201,7 @@ async def get_attendance_summary_from_db(
         )
 
     return {
-        "session_id": session_id,
+        "session_schedule_id": session_schedule_id,
         "present_count": len(present_students),
         "late_count": len(late_students),
         "absent_count": len(absent_students),
@@ -212,9 +212,9 @@ async def get_attendance_summary_from_db(
     }
 
 
-def clear_session_tracking(session_id: str) -> None:
-    if session_id in attendance_tracking:
-        del attendance_tracking[session_id]
+def clear_session_tracking(session_schedule_id: str) -> None:
+    if session_schedule_id in attendance_tracking:
+        del attendance_tracking[session_schedule_id]
 
 
 def update_distance_threshold(new_threshold: float) -> None:
