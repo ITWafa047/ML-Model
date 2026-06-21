@@ -46,13 +46,12 @@ class FaceProcessor:
         if aligned_face.dtype != np.uint8:
             raise ValueError(f"Expected uint8, got {aligned_face.dtype}")
 
+        image = aligned_face.astype(np.float32)  # Convert to float32 for processing
+        image = image / 127.5 - 1.0  # Normalize to [-1, 1]
+        image = np.transpose(image, (2, 0, 1))  # Change to (C, H, W)
+        image = np.expand_dims(image, axis=0)  # Add batch dimension
 
-        image = aligned_face.astype(np.float32) # Convert to float32 for processing
-        image = image / 127.5 - 1.0 # Normalize to [-1, 1]
-        image = np.transpose(image, (2, 0, 1)) # Change to (C, H, W)
-        image = np.expand_dims(image, axis=0) # Add batch dimension
-
-        return image # (1, 3, 112, 112) float32
+        return image  # (1, 3, 112, 112) float32
 
     def extract_embedding(
         self, preprocessed_image: np.ndarray, model_name: str = None
@@ -75,10 +74,7 @@ class FaceProcessor:
 
         # Thread-safe model loading and inference
         with self._session_lock:
-            if (
-                self._session is None
-                or self._current_model_path != model_name
-            ):
+            if self._session is None or self._current_model_path != model_name:
                 self.logger.info(f"Loading ArcFace model: {model_name}")
                 self._session = ort.InferenceSession(
                     model_name, providers=self.providers
@@ -91,9 +87,7 @@ class FaceProcessor:
             input_name = self._session.get_inputs()[0].name
             output_name = self._session.get_outputs()[0].name
 
-            output = self._session.run(
-                [output_name], {input_name: preprocessed_image}
-            )
+            output = self._session.run([output_name], {input_name: preprocessed_image})
 
         embedding = output[0][0]
 
@@ -103,10 +97,7 @@ class FaceProcessor:
 
         return embedding
 
-    
-    def generate_embedding(
-        self, face: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    def generate_embedding(self, face: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Generate robust embedding with augmentations.
 
@@ -187,10 +178,9 @@ class FaceProcessor:
         embeddings_stack = np.stack(embeddings, axis=0)  # (6, 512)
         mean_embedding = np.mean(embeddings_stack, axis=0)  # (512,)
 
-
         # Normalize
         norm = np.linalg.norm(mean_embedding)
         normalized_embedding = mean_embedding / (norm + 1e-8)
 
         self.logger.info("Embedding generation completed")
-        return normalized_embedding,  embeddings_stack
+        return normalized_embedding, embeddings_stack

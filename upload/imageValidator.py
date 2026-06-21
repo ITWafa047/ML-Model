@@ -37,7 +37,6 @@ class ImageValidator:
         self.min_width = 500
         self.min_height = 650
 
-        
         # Face size validation
         self.min_face_width = 80
         self.min_face_height = 80
@@ -59,9 +58,7 @@ class ImageValidator:
             self.providers = ["CPUExecutionProvider"]
 
         # initialize the face analysis model
-        self.face_detector = FaceAnalysis(
-            name="buffalo_l", providers=self.providers
-        )
+        self.face_detector = FaceAnalysis(name="buffalo_l", providers=self.providers)
 
         # buffalo_l: a large model with high accuracy, suitable for face detection and recognition tasks. It is based on the RetinaFace architecture and provides robust performance in various conditions.
 
@@ -72,7 +69,9 @@ class ImageValidator:
             ctx_id=0, det_size=(1024, 1024)
         )  # set det_size to (1024, 1024) for better accuracy on high-resolution images, but it can be adjusted based on performance needs
 
-        self.logger.info("ImageValidator initialized with providers: %s", self.providers)
+        self.logger.info(
+            "ImageValidator initialized with providers: %s", self.providers
+        )
 
     async def validate_format(self, file: UploadFile) -> bool:
         """
