@@ -1,4 +1,8 @@
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 import uvicorn
 from routers.uploadImage import router as upload_router
 from routers.start_session import router as session_router
@@ -6,10 +10,24 @@ from routers.attendance_ws import router as attendance_router
 from routers.sync_session import router as sync_router
 from core.middleware import AuthMiddleware
 from routers.deleteImage import router as delete_router
+
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title="ML Model API",
     version="1.0.0",
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(
+        "Validation error for %s %s: %s",
+        request.method,
+        request.url.path,
+        exc.errors(),
+    )
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 
 app.include_router(upload_router)

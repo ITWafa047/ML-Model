@@ -37,9 +37,5 @@ w600k_r50.onnx
 attendu.db
 alembic
 alembic.ini
-data
 Notes.md
-core
-schemas
-routers
-test
+

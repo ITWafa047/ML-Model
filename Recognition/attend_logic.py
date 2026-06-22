@@ -9,7 +9,7 @@ DISTANCE_THRESHOLD = 0.6
 CONFIDENCE_THRESHOLD = 0.0
 
 attendance_tracking = {}
-DUPLICATE_CHECK_WINDOW = 30
+DUPLICATE_CHECK_WINDOW = 40  # 40 ثواني بدل 30
 
 
 def classify_attendance(recorded_time, start_time, min_attend, max_attend) -> str:

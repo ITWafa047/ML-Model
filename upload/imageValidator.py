@@ -44,8 +44,8 @@ class ImageValidator:
         self.min_confidence = 0.65  # or 0.75
 
         # lighting condition validation
-        self.min_brightness = 80
-        self.max_brightness = 200
+        self.min_brightness = 60  # 🔥 FIX: reduced from 80 for low-light conditions
+        self.max_brightness = 220
         self.blur_threshold = 100
 
         logging.basicConfig(level=logging.INFO)
