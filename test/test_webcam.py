@@ -5,7 +5,10 @@ import asyncio
 import websockets
 from datetime import datetime, timedelta
 
-WS_URL = "ws://governance-rats-boating-incoming.trycloudflare.com/ws/attendance?session_schedule_id=SEC_2026_01"
+BASE_URL = "ws://governance-rats-boating-incoming.trycloudflare.com"
+SESSION_SCHEDULE_ID = "SEC_2026_01"
+
+WS_URL = f"{BASE_URL}/ws/attendance?session_schedule_id={SESSION_SCHEDULE_ID}"
 
 # 🔥 Client-side duplicate tracking
 last_marked_student = None
