@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
+import httpx
 from fastapi import APIRouter, HTTPException, Path
 
 from Recognition.attend_logic import get_attendance_summary_from_db
@@ -69,19 +69,44 @@ async def sync_session_attendance(session_schedule_id: str = Path(...)):
             expected_students=session_data["student_map"]
         )
 
-        now_dt = datetime.now(ZoneInfo("Africa/Cairo"))
+        now_dt = datetime.now().isoformat()
+
+        # Format student lists with student_code and confidence_score
+        present_students_formatted = [
+            {
+                "student_code": student.get("student_code"),
+                "confidence_score": student.get("confidence_score")
+            }
+            for student in summary.get("present_students", [])
+        ]
+        
+        late_students_formatted = [
+            {
+                "student_code": student.get("student_code"),
+                "confidence_score": student.get("confidence_score")
+            }
+            for student in summary.get("late_students", [])
+        ]
+        
+        absent_students_formatted = [
+            {
+                "student_code": student.get("student_code"),
+                "confidence_score": student.get("confidence_score")
+            }
+            for student in summary.get("absent_students", [])
+        ]
 
         final_attendance_doc = {
             "session_schedule_id": session_schedule_id,
-            "synced_at": now_dt.isoformat(),
+            "synced_at": now_dt,
             "sync_timestamp": now_dt,
-            "present_count": len(summary.get("present_students", [])),
-            "late_count": len(summary.get("late_students", [])),
-            "absent_count": len(summary.get("absent_students", [])),
+            "present_count": len(present_students_formatted),
+            "late_count": len(late_students_formatted),
+            "absent_count": len(absent_students_formatted),
             "total_expected": summary.get("total_expected", 0),
-            "present_students": summary.get("present_students", []),
-            "late_students": summary.get("late_students", []),
-            "absent_students": summary.get("absent_students", []),
+            "present_students": present_students_formatted,
+            "late_students": late_students_formatted,
+            "absent_students": absent_students_formatted,
             "session_info": {
                 "created_at": session_data.get("created_at"),
                 "start_time": session_data.get("start_time"),
@@ -153,23 +178,54 @@ async def post_attendance_to_external(session_schedule_id: str = Path(...)):
                     "absent": final_attendance["absent_count"],
                     "total": final_attendance["total_expected"],
                 },
-                "present_students": final_attendance.get("present_students", []),
-                "late_students": final_attendance.get("late_students", []),
-                "absent_students": final_attendance.get("absent_students", []),
+                "present_students": [
+                    {
+                        "student_code": student.get("student_code"),
+                        "confidence_score": student.get("confidence_score")
+                    }
+                    for student in final_attendance.get("present_students", [])
+                ],
+                "late_students": [
+                    {
+                        "student_code": student.get("student_code"),
+                        "confidence_score": student.get("confidence_score")
+                    }
+                    for student in final_attendance.get("late_students", [])
+                ],
+                "absent_students": [
+                    {
+                        "student_code": student.get("student_code"),
+                        "confidence_score": student.get("confidence_score")
+                    }
+                    for student in final_attendance.get("absent_students", [])
+                ],
             },
-            "session_info": final_attendance.get("session_info", {})
         }
+
+        BASE_URL = "https://domestic-bearing-smtp-risks.trycloudflare.com"
+        # Post to external backend
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{BASE_URL}/api/attendance/store",
+                json=post_payload,
+                headers={"X-API-KEY": "NgnsLEnJo64GQyF6yz225n9X8s1v2"},
+                timeout=30
+            )
+            response.raise_for_status()
 
         logger.info(f"Attendance posted for session {session_schedule_id}")
 
         return {
             "status": "success",
-            "message": "Attendance posted successfully",
-            "payload": post_payload
+            "message": "Attendance posted successfully"
         }
 
-    except HTTPException:
-        raise
+    except httpx.HTTPError as e:
+        logger.error(f"Failed to post to backend: {str(e)}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to post to backend: {str(e)}"
+        )
 
     except Exception as e:
         logger.error(

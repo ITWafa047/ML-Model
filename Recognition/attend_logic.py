@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, Optional, List
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +12,9 @@ DUPLICATE_CHECK_WINDOW = 40  # 40 ثواني بدل 30
 
 
 def classify_attendance(recorded_time, start_time, min_attend, max_attend) -> str:
-    diff_minutes = (recorded_time - start_time).total_seconds() / 60 # convert to minutes
+    diff_minutes = (
+        recorded_time - start_time
+    ).total_seconds() / 60  # convert to minutes
 
     if diff_minutes <= min_attend:
         return "present"
@@ -21,6 +22,7 @@ def classify_attendance(recorded_time, start_time, min_attend, max_attend) -> st
         return "late"
     else:
         return "absent"
+
 
 def process_attendance(
     student_code: Optional[str],
@@ -30,8 +32,8 @@ def process_attendance(
     session_data: Dict,
 ) -> Dict:
 
-    now_dt = datetime.now(ZoneInfo("Africa/Cairo"))
-    now = now_dt.isoformat()  # Use ISO format for proper datetime parsing
+    # ✅ FIX: local time بدون timezone خالص
+    now = datetime.now()
 
     # 🔥 FIX: convert numpy → float
     distance = float(distance) if distance is not None else None
@@ -42,49 +44,53 @@ def process_attendance(
             "status": "unknown",
             "message": "Face not recognized",
             "distance": distance,
-            "recorded_at": now,
-            "model_accuracy": None,
+            "recorded_at": now.isoformat(),
+            "confidence_score": None,
             "session_schedule_id": session_schedule_id,
         }
 
-    # 🔥 FIX: removed threshold check from here (moved to attendance_ws)
-
-    # ⚠ duplicate
-    if not _check_duplicate_attendance(session_schedule_id, student_code, now_dt):
+    # ⚠️ duplicate
+    if not _check_duplicate_attendance(session_schedule_id, student_code, now):
         return {
             "status": "duplicate",
             "message": f"Student {student_code} already marked recently",
             "student_code": str(student_code),
             "student_name": str(student_map.get(student_code, "Unknown")),
-            "recorded_at": now,
-            "model_accuracy": None,
+            "recorded_at": now.isoformat(),
+            "confidence_score": None,
             "session_schedule_id": session_schedule_id,
         }
 
     # ✅ success
     student_name = student_map.get(student_code, "Unknown")
 
-    # 🔥 FIX: datetime normalization
+    # ✅ FIX: normalize start_time — شيل الـ timezone لو موجود أو حوّله من string
     start_time = session_data["start_time"]
-    if start_time.tzinfo is None:
-        start_time = start_time.replace(tzinfo=ZoneInfo("Africa/Cairo"))
+    if isinstance(start_time, str):
+        # لو اتخزن كـ string في MongoDB
+        start_time = datetime.fromisoformat(start_time).replace(tzinfo=None)
+    elif hasattr(start_time, 'tzinfo') and start_time.tzinfo is not None:
+        # لو datetime بـ timezone
+        start_time = start_time.replace(tzinfo=None)
 
     status = classify_attendance(
-        recorded_time=now_dt,
+        recorded_time=now,
         start_time=start_time,
         min_attend=session_data["min_attend"],
         max_attend=session_data["max_attend"],
     )
 
-    model_accuracy = float(1.0 - min(distance / DISTANCE_THRESHOLD, 1.0))
+    confidence_score = float(
+        (1.0 - min(distance / DISTANCE_THRESHOLD, 1.0)) * 100
+    )
 
     return {
         "status": str(status),
         "message": f"Student marked as {status}",
         "student_code": str(student_code),
         "student_name": str(student_name),
-        "recorded_at": now,
-        "model_accuracy": model_accuracy,
+        "recorded_at": now.isoformat(),
+        "confidence_score": confidence_score,
         "session_schedule_id": session_schedule_id,
     }
 
@@ -135,7 +141,9 @@ def get_attendance_summary(
             {
                 "student_code": str(code),
                 "student_name": str(expected_students.get(code, "Unknown")),
-                "time": attendance_tracking[session_schedule_id][code].strftime("%I:%M:%S %p"),
+                "time": attendance_tracking[session_schedule_id][code].strftime(
+                    "%I:%M:%S %p"
+                ),
             }
             for code in present_students
         ],
@@ -174,9 +182,9 @@ async def get_attendance_summary_from_db(
             "student_code": code,
             "student_name": str(record.get("student_name", "Unknown")),
             "recorded_at": str(record.get("recorded_at")),
-            "model_accuracy": (
-                float(record.get("model_accuracy"))
-                if record.get("model_accuracy")
+            "confidence_score": (
+                float(record.get("confidence_score"))
+                if record.get("confidence_score")
                 else None
             ),
         }
@@ -196,7 +204,7 @@ async def get_attendance_summary_from_db(
                 "student_code": str(code),
                 "student_name": str(expected_students.get(code, "Unknown")),
                 "recorded_at": None,
-                "model_accuracy": None,
+                "confidence_score": None,
             }
         )
 

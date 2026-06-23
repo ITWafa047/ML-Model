@@ -325,25 +325,25 @@ class ImageValidator:
             x1, y1, x2, y2 = [
                 int(v) for v in bbox
             ]  # v is expected to be in [x1, y1, x2, y2] format
-            width = x2 - x1
-            height = y2 - y1
         except Exception as e:
             raise ValueError(
                 f"Invalid bounding box format: {str(e)}. Expected format is [x1, y1, x2, y2]."
             )
 
-        # validate bbox is within image bounds
-        if x1 < 0 or y1 < 0 or x2 > image_width or y2 > image_height:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Bounding box coordinates are out of image bounds. Image dimensions: {image_width}x{image_height}, Bounding box: [{x1}, {y1}, {x2}, {y2}]",
-            )
+        x1 = max(0, min(x1, image_width))
+        y1 = max(0, min(y1, image_height))
+        x2 = max(0, min(x2, image_width))
+        y2 = max(0, min(y2, image_height))
+        face_info["bbox"] = [x1, y1, x2, y2]
+
+        width = x2 - x1
+        height = y2 - y1
 
         # validate bbox has positive width and height
         if width <= 0 or height <= 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid bounding box dimensions. Width and height must be positive. Bounding box: [{x1}, {y1}, {x2}, {y2}]",
+                detail=f"Invalid bounding box dimensions after clamping to image bounds. Image dimensions: {image_width}x{image_height}, Bounding box: [{x1}, {y1}, {x2}, {y2}]",
             )
 
         # validate face size

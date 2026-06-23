@@ -5,8 +5,8 @@ import asyncio
 import websockets
 from datetime import datetime, timedelta
 
-BASE_URL = "ws://governance-rats-boating-incoming.trycloudflare.com"
-SESSION_SCHEDULE_ID = "SEC_2026_01"
+BASE_URL = "ws://geo-significantly-often-cliff.trycloudflare.com"
+SESSION_SCHEDULE_ID = "2"
 
 WS_URL = f"{BASE_URL}/ws/attendance?session_schedule_id={SESSION_SCHEDULE_ID}"
 
