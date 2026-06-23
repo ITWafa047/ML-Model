@@ -174,7 +174,14 @@ async def get_attendance_summary_from_db(
     recorded_codes = set()
 
     for record in records:
-        code = str(record.get("student_code"))
+
+        code = record.get("student_code")
+
+        if code is None:
+            continue
+        
+        code = str(code)
+
         status = record.get("status")
         recorded_codes.add(code)
 
