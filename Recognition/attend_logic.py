@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, Optional, List
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ def process_attendance(
 ) -> Dict:
 
     # ✅ FIX: local time بدون timezone خالص
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Africa/Cairo")).replace(tzinfo=None)
 
     # 🔥 FIX: convert numpy → float
     distance = float(distance) if distance is not None else None

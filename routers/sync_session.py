@@ -202,7 +202,7 @@ async def post_attendance_to_external(session_schedule_id: str = Path(...)):
             },
         }
 
-        BASE_URL = "https://domestic-bearing-smtp-risks.trycloudflare.com"
+        BASE_URL = "https://richard-expiration-meat-wives.trycloudflare.com"
         # Post to external backend
         async with httpx.AsyncClient() as client:
             response = await client.post(
