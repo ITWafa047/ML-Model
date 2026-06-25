@@ -27,14 +27,13 @@ async def sync_session_attendance(session_schedule_id: str = Path(...)):
             session_data = await session_manager.get_session_data(session_schedule_id)
         except Exception:
             session_collection = get_session_collection(session_schedule_id)
-            session_doc = await session_collection.find_one({
-                "session_schedule_id": session_schedule_id
-            })
+            session_doc = await session_collection.find_one(
+                {"session_schedule_id": session_schedule_id}
+            )
 
             if not session_doc:
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Session {session_schedule_id} not found"
+                    status_code=404, detail=f"Session {session_schedule_id} not found"
                 )
 
             student_map = {}
@@ -59,14 +58,14 @@ async def sync_session_attendance(session_schedule_id: str = Path(...)):
         if not attendance_records:
             raise HTTPException(
                 status_code=404,
-                detail=f"No attendance records found for session {session_schedule_id}"
+                detail=f"No attendance records found for session {session_schedule_id}",
             )
 
         final_collection = get_final_attendance_collection()
 
         summary = await get_attendance_summary_from_db(
             session_schedule_id=session_schedule_id,
-            expected_students=session_data["student_map"]
+            expected_students=session_data["student_map"],
         )
 
         now_dt = datetime.now().isoformat()
@@ -75,23 +74,23 @@ async def sync_session_attendance(session_schedule_id: str = Path(...)):
         present_students_formatted = [
             {
                 "student_code": student.get("student_code"),
-                "confidence_score": student.get("confidence_score")
+                "confidence_score": student.get("confidence_score"),
             }
             for student in summary.get("present_students", [])
         ]
-        
+
         late_students_formatted = [
             {
                 "student_code": student.get("student_code"),
-                "confidence_score": student.get("confidence_score")
+                "confidence_score": student.get("confidence_score"),
             }
             for student in summary.get("late_students", [])
         ]
-        
+
         absent_students_formatted = [
             {
                 "student_code": student.get("student_code"),
-                "confidence_score": student.get("confidence_score")
+                "confidence_score": student.get("confidence_score"),
             }
             for student in summary.get("absent_students", [])
         ]
@@ -113,7 +112,7 @@ async def sync_session_attendance(session_schedule_id: str = Path(...)):
                 "end_time": session_data.get("end_time"),
                 "min_attend": session_data.get("min_attend"),
                 "max_attend": session_data.get("max_attend"),
-            }
+            },
         }
 
         result = await final_collection.insert_one(final_attendance_doc)
@@ -131,7 +130,7 @@ async def sync_session_attendance(session_schedule_id: str = Path(...)):
                 "absent_count": final_attendance_doc["absent_count"],
                 "total_expected": final_attendance_doc["total_expected"],
             },
-            "inserted_id": str(result.inserted_id)
+            "inserted_id": str(result.inserted_id),
         }
 
     except HTTPException:
@@ -139,10 +138,7 @@ async def sync_session_attendance(session_schedule_id: str = Path(...)):
 
     except Exception as e:
         logger.error(f"Error syncing session {session_schedule_id}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to sync session: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to sync session: {str(e)}")
 
 
 @router.post("/sync/post-attendance/{session_schedule_id}")
@@ -155,14 +151,13 @@ async def post_attendance_to_external(session_schedule_id: str = Path(...)):
         final_collection = get_final_attendance_collection()
 
         final_attendance = await final_collection.find_one(
-            {"session_schedule_id": session_schedule_id},
-            sort=[("_id", -1)]
+            {"session_schedule_id": session_schedule_id}, sort=[("_id", -1)]
         )
 
         if not final_attendance:
             raise HTTPException(
                 status_code=404,
-                detail=f"No final attendance found for session {session_schedule_id}"
+                detail=f"No final attendance found for session {session_schedule_id}",
             )
 
         if "_id" in final_attendance:
@@ -181,21 +176,21 @@ async def post_attendance_to_external(session_schedule_id: str = Path(...)):
                 "present_students": [
                     {
                         "student_code": student.get("student_code"),
-                        "confidence_score": student.get("confidence_score")
+                        "confidence_score": student.get("confidence_score"),
                     }
                     for student in final_attendance.get("present_students", [])
                 ],
                 "late_students": [
                     {
                         "student_code": student.get("student_code"),
-                        "confidence_score": student.get("confidence_score")
+                        "confidence_score": student.get("confidence_score"),
                     }
                     for student in final_attendance.get("late_students", [])
                 ],
                 "absent_students": [
                     {
                         "student_code": student.get("student_code"),
-                        "confidence_score": student.get("confidence_score")
+                        "confidence_score": student.get("confidence_score"),
                     }
                     for student in final_attendance.get("absent_students", [])
                 ],
@@ -209,22 +204,18 @@ async def post_attendance_to_external(session_schedule_id: str = Path(...)):
                 f"{BASE_URL}/api/attendance/store",
                 json=post_payload,
                 headers={"X-API-KEY": "NgnsLEnJo64GQyF6yz225n9X8s1v2"},
-                timeout=30
+                timeout=30,
             )
             response.raise_for_status()
 
         logger.info(f"Attendance posted for session {session_schedule_id}")
 
-        return {
-            "status": "success",
-            "message": "Attendance posted successfully"
-        }
+        return {"status": "success", "message": "Attendance posted successfully"}
 
     except httpx.HTTPError as e:
         logger.error(f"Failed to post to backend: {str(e)}")
         raise HTTPException(
-            status_code=502,
-            detail=f"Failed to post to backend: {str(e)}"
+            status_code=502, detail=f"Failed to post to backend: {str(e)}"
         )
 
     except Exception as e:
@@ -232,43 +223,77 @@ async def post_attendance_to_external(session_schedule_id: str = Path(...)):
             f"Error posting attendance for session {session_schedule_id}: {str(e)}"
         )
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to post attendance: {str(e)}"
+            status_code=500, detail=f"Failed to post attendance: {str(e)}"
         )
 
 
-@router.get("/sync/sessions")
-async def get_all_synced_sessions():
+@router.get("/sync/sessions/{session_schedule_id}")
+async def get_all_synced_sessions(session_schedule_id: str = Path(...)):
     """
     Get all synced sessions from final_attendance collection.
     """
     try:
         final_collection = get_final_attendance_collection()
 
-        synced_sessions = await final_collection.find(
-            {}, {"_id": 0}
+        synced_session = await final_collection.find(
+            {"session_schedule_id": session_schedule_id}, {"_id": 0}
         ).to_list(None)
 
-        if not synced_sessions:
+        if not synced_session:
             return {
                 "status": "success",
                 "message": "No synced sessions found",
                 "total_sessions": 0,
-                "sessions": []
+                "sessions": [],
             }
 
         return {
-            "status": "success",
-            "message": "Retrieved all synced sessions",
-            "total_sessions": len(synced_sessions),
-            "sessions": synced_sessions
+            "session_schedule_id": synced_session[0]["session_schedule_id"],
+            "synced_at": synced_session[0]["synced_at"],
+            "attendance_data": {
+                "summary": {
+                    "present": synced_session[0]["present_count"],
+                    "late": synced_session[0]["late_count"],
+                    "absent": synced_session[0]["absent_count"],
+                    "total": synced_session[0]["total_expected"],
+                },
+                "present_students": [
+                    {
+                        "student_code": student.get("student_code"),
+                        "student_name": student.get("student_name"),
+                        "confidence_score": student.get("confidence_score"),
+                    }
+                    for student in synced_session[0].get("present_students", [])
+                ],
+                "late_students": [
+                    {
+                        "student_code": student.get("student_code"),
+                        "student_name": student.get("student_name"),
+                        "confidence_score": student.get("confidence_score"),
+                    }
+                    for student in synced_session[0].get("late_students", [])
+                ],
+                "absent_students": [
+                    {
+                        "student_code": student.get("student_code"),
+                        "student_name": student.get("student_name"),
+                        "confidence_score": student.get("confidence_score"),
+                    }
+                    for student in synced_session[0].get("absent_students", [])
+                ],
+            },
+            "session_info":{
+                "min_attend": synced_session[0]["session_info"]["min_attend"],
+                "max_attend": synced_session[0]["session_info"]["max_attend"],
+                "start_time": synced_session[0]["session_info"]["start_time"],
+                "end_time": synced_session[0]["session_info"]["end_time"],
+            }
         }
 
     except Exception as e:
         logger.error(f"Error retrieving synced sessions: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve sessions: {str(e)}"
+            status_code=500, detail=f"Failed to retrieve sessions: {str(e)}"
         )
 
 
@@ -294,12 +319,11 @@ async def delete_session_data(session_schedule_id: str = Path(...)):
             "status": "success",
             "message": f"Session {session_schedule_id} data cleaned up",
             "deleted_records": session_delete_result.deleted_count,
-            "session_schedule_id": session_schedule_id
+            "session_schedule_id": session_schedule_id,
         }
 
     except Exception as e:
         logger.error(f"Error deleting session {session_schedule_id}: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete session data: {str(e)}"
+            status_code=500, detail=f"Failed to delete session data: {str(e)}"
         )

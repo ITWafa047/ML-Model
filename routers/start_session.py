@@ -359,4 +359,6 @@ async def get_session_info(
         "min_attend": data["min_attend"],
         "max_attend": data["max_attend"],
         "status": "active",
+        "start_time": data["start_time"],
+        "end_time": data["end_time"],
     }
