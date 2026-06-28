@@ -8,6 +8,7 @@ from Recognition.webcamRecognition import decode_frame, validate_frame
 from Recognition.faceEngine import search_face
 from Recognition.attend_logic import process_attendance, DISTANCE_THRESHOLD
 from Recognition.anti_spoofing.anti_spoof_manager import AntiSpoofManager
+from core.config import API_KEY
 from upload.imageValidator import ImageValidator
 from upload.faceProcessor import FaceProcessor
 from data.crud import get_session_collection
@@ -67,6 +68,11 @@ def estimate_yaw_from_landmarks(landmarks):
 async def attendance_websocket(
     websocket: WebSocket, session_schedule_id: str = Query(...)
 ):
+    api_key = websocket.query_params.get("api_key")
+    if api_key != API_KEY:
+        await websocket.close(code=1008)
+        return
+    
     await websocket.accept()
     logger.info(f"WebSocket connected for session: {session_schedule_id}")
 
