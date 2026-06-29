@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import uvicorn
@@ -8,7 +8,7 @@ from routers.uploadImage import router as upload_router
 from routers.start_session import router as session_router
 from routers.attendance_ws import router as attendance_router
 from routers.sync_session import router as sync_router
-from core.middleware import AuthMiddleware
+from core.middleware import verify_api_key, verify_token
 from routers.deleteImage import router as delete_router
 
 logger = logging.getLogger(__name__)
@@ -29,28 +29,37 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
+# -------------------------------------------------------------------------------------------------------
 
-app.include_router(upload_router)
-app.include_router(session_router)
-app.include_router(attendance_router)
-app.include_router(sync_router)
-app.include_router(delete_router)
+# Routers with API key verification
+app.include_router(
+    upload_router, dependencies=[Depends(verify_api_key)]
+)  # upload image router
 
-app.add_middleware(AuthMiddleware)
+app.include_router(session_router,dependencies=[Depends(verify_api_key)])  # start session router
+app.include_router(delete_router,dependencies=[Depends(verify_api_key)])  # delete image router
+
+# -------------------------------------------------------------------------------------------------------
+
+# WebSocket and sync routers require token verification
+app.include_router(attendance_router,dependencies=[Depends(verify_token)])  # websocket router
+app.include_router(sync_router,dependencies=[Depends(verify_token)])  # sync session router
+
+# -------------------------------------------------------------------------------------------------------
+
 
 @app.get("/")
 def home():
     return {"message": "ML Model API Running"}
 
 
-
 @app.get("/ws/attendance", tags=["Live Session"])
 def get_live_session_code(session_schedule_id: str = "SEC_2026_02"):
     """
     Get Live Session Connection Code Template for Frontend
-    
+
     Provides copy-paste ready code that frontend can use with their own session_schedule_id.
-    
+
     Query Parameters:
     - session_schedule_id: The session ID to include in the code template (default: SEC_2026_02)
     """
@@ -191,15 +200,15 @@ asyncio.run(live_session())
             "step_2": "Replace 'your-api-url' with your actual API URL",
             "step_3": "Replace session_schedule_id if needed (default: SEC_2026_02)",
             "step_4": "Run the code and monitor the console/terminal for results",
-            "step_5": "Press 'q' to exit (or close the browser/Python window)"
+            "step_5": "Press 'q' to exit (or close the browser/Python window)",
         },
         "notes": {
             "javascript": "Requires HTML canvas or video element and modern browser",
             "python": "Requires: cv2 (opencv-python), websockets, asyncio libraries",
             "frame_format": "All frames must be JPEG encoded in base64 format",
             "frequency": "Recommended 30 fps for best performance",
-            "api_url_example": "http://localhost:8000 (local) or wss://your-domain.com (production)"
-        }
+            "api_url_example": "http://localhost:8000 (local) or wss://your-domain.com (production)",
+        },
     }
 
 

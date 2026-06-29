@@ -8,11 +8,12 @@ from Recognition.webcamRecognition import decode_frame, validate_frame
 from Recognition.faceEngine import search_face
 from Recognition.attend_logic import process_attendance, DISTANCE_THRESHOLD
 from Recognition.anti_spoofing.anti_spoof_manager import AntiSpoofManager
-from core.config import API_KEY
 from upload.imageValidator import ImageValidator
 from upload.faceProcessor import FaceProcessor
 from data.crud import get_session_collection
 from routers.start_session import get_session_manager
+import httpx
+from core.config import LARAVEL_VALIDATE_URL
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -68,13 +69,45 @@ def estimate_yaw_from_landmarks(landmarks):
 async def attendance_websocket(
     websocket: WebSocket, session_schedule_id: str = Query(...)
 ):
-    api_key = websocket.query_params.get("api_key")
-    if api_key != API_KEY:
+
+    token = websocket.query_params.get("token")
+
+    if not token:
         await websocket.close(code=1008)
         return
-    
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(
+                LARAVEL_VALIDATE_URL, headers={"Authorization": f"Bearer {token}"}
+            )
+    except httpx.RequestError as e:
+        logger.error(f"Laravel unreachable: {str(e)}")
+        await websocket.close(code=1011)
+        return
+
+    # check response AFTER request
+    if response.status_code != 200:
+        await websocket.close(code=1008)
+        logger.warning(f"Unauthorized role attempt: {user}")
+        return
+
+    user = response.json()
+
+    if user.get("role") != "instructor":
+        logger.warning(f"Unauthorized role: {user}")
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
-    logger.info(f"WebSocket connected for session: {session_schedule_id}")
+
+    websocket.state.user = user
+    websocket.state.session_id = session_schedule_id
+
+    logger.info(
+        f"User {user['name']} ({user['id']}) [{user['role']}]"
+        f"connected to session {session_schedule_id}"
+    )
 
     session_manager = get_session_manager()
 
